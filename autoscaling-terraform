@@ -1,0 +1,26 @@
+provider "aws" {
+  region = "us-west-2"
+}
+resource "aws_launch_configuration" "tfm-cfg" {
+  name_prefix   = "tfm-cfg"
+  image_id      = "ami-01fee56b22f308154"
+  instance_type = "t2.micro"
+  key_name = "tfm"
+ security_groups = ["sg-0599eb677cdb5a57c"]
+  }
+
+resource "aws_autoscaling_group" "tfm-grp" {
+name = "tfm-scling"
+vpc_zone_identifier = [ "subnet-06d0f261afc49d52b", "subnet-02dc963aac018c85e" ]
+min_size = 2
+max_size = 4
+health_check_grace_period = 180
+health_check_type = "EC2"
+force_delete = true
+launch_configuration = aws_launch_configuration.tfm-cfg.id
+tag {
+
+  key = "Name"
+  value = "ec2 instance"
+  propagate_at_launch = true
+}
