@@ -1,0 +1,176 @@
+/tfm-test# cat vpc.tf
+provider "aws" {
+  region = "us-west-2"
+}
+
+resource "aws_vpc" "dhm-tfm" {
+  cidr_block       = "11.0.0.0/16"
+  instance_tenancy = "default"
+  tags = {
+    Name = "tfm-vpc"
+
+  }
+  #vpc_security_group   = [aws_security_group.allow_tls.id]
+
+}
+
+resource "aws_subnet" "main" {
+  vpc_id                  = aws_vpc.dhm-tfm.id
+  cidr_block              = "11.0.0.0/24"
+  availability_zone       = "us-west-2a"
+  map_public_ip_on_launch = "true"
+  tags = {
+    Name = "tfm-subnet"
+  }
+}
+
+resource "aws_subnet" "main1" {
+  vpc_id            = aws_vpc.dhm-tfm.id
+  cidr_block        = "11.0.1.0/24"
+  availability_zone = "us-west-2b"
+  map_public_ip_on_launch = "true"
+  tags = {
+    Name = "tfm-subnet-1"
+  }
+}
+
+resource "aws_internet_gateway" "gw" {
+  vpc_id = aws_vpc.dhm-tfm.id
+  tags = {
+    Name = "tfm-igw"
+  }
+}
+
+
+resource "aws_route_table" "tbl-tfm" {
+  vpc_id = aws_vpc.dhm-tfm.id
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.gw.id
+  }
+}
+
+
+resource "aws_route_table_association" "test" {
+  subnet_id      = aws_subnet.main.id
+  route_table_id = aws_route_table.tbl-tfm.id
+}
+
+
+
+
+
+resource "aws_security_group" "allow_tls" {
+  name        = "tes-inbound"
+  description = "Allow TLS inbound traffic"
+
+  ingress {
+    description = "TLS from VPC"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  ingress {
+    description     = "allow to load balancer"
+    from_port       = 80
+    to_port         = 80
+    protocol        = "tcp"
+    security_groups = [aws_security_group.lbsg.id]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  vpc_id = aws_vpc.dhm-tfm.id
+}
+
+resource "aws_security_group" "lbsg" {
+  ingress {
+    description = "Loadb balancer sg"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+vpc_id = aws_vpc.dhm-tfm.id
+}
+
+resource "aws_instance" "example1" {
+
+  ami           = "ami-01fee56b22f308154"
+  instance_type = "t2.micro"
+  key_name      = "tfm"
+  tags = {
+    Name = "Testing-ec2_2"
+  }
+  /*  vpc_id = aws_vpc.dhm-tfm.id  */
+  subnet_id       = aws_subnet.main1.id
+  security_groups = [aws_security_group.allow_tls.id]
+}
+
+resource "aws_instance" "example" {
+
+  ami           = "ami-01fee56b22f308154"
+  instance_type = "t2.micro"
+  key_name      = "tfm"
+  tags = {
+    Name = "Testing-ec2_1"
+  }
+  /*  vpc_id = aws_vpc.dhm-tfm.id  */
+  subnet_id       = aws_subnet.main.id
+  security_groups = [aws_security_group.allow_tls.id]
+}
+
+
+resource "aws_lb_target_group" "testtg" {
+  name = "tf-example-lb-tg"
+  port = 80
+
+  #target_id = aws_instance.example.id
+  protocol = "HTTP"
+  vpc_id   = aws_vpc.dhm-tfm.id
+  tags = {
+
+    name = "tfm-tgp"
+  }
+}
+
+/*
+resource "aws_lb_listener" "tfm-lb-listener" {
+  load_balancer_arn = aws_lb.tfm-lb.arn
+  port = 80
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.testtg.arn
+  }
+}
+
+*/
+
+resource "aws_lb_target_group_attachment" "attachec2" {
+  target_group_arn = aws_lb_target_group.testtg.id
+  target_id        = aws_instance.example.id
+}
+resource "aws_lb_target_group_attachment" "attache" {
+target_group_arn = aws_lb_target_group.testtg.id
+target_id = aws_instance.example1.id
+}
+resource "aws_lb" "tfm-lb" {
+  name            = "tfm-lbs"
+  security_groups = [aws_security_group.lbsg.id]
+  load_balancer_type = "application"
+  tags = {
+    name = "tfm-loadbalancer"
+  }
+  subnets = [ aws_subnet.main.id, aws_subnet.main1.id]
+}
