@@ -1,0 +1,140 @@
+/tfm-test/scl-grp# cat scl.tf
+provider "aws" {
+  region = "us-west-2"
+}
+
+
+resource "aws_security_group" "scl-sg" {
+  name        = "scl-sg"
+  description = "autoscaling security group"
+  vpc_id      = aws_vpc.scl-vpc.id
+
+  ingress {
+    description = "TLS from VPC"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "scl-sg"
+  }
+}
+
+
+
+resource "aws_vpc" "scl-vpc" {
+  cidr_block           = "172.32.0.0/16"
+  instance_tenancy     = "default"
+  enable_dns_hostnames = true
+  tags = {
+
+    name = "tfm-scl-vpc"
+  }
+}
+
+resource "aws_subnet" "scl-sbnt-1" {
+  vpc_id                  = aws_vpc.scl-vpc.id
+  cidr_block              = "172.32.0.0/24"
+  map_public_ip_on_launch = true
+  availability_zone       = "us-west-2b"
+  tags = {
+
+    name = "tfm-scl-sb1"
+  }
+}
+
+resource "aws_subnet" "scl-sbnt-2" {
+  vpc_id                  = aws_vpc.scl-vpc.id
+  cidr_block              = "172.32.1.0/24"
+  map_public_ip_on_launch = true
+  availability_zone       = "us-west-2a"
+  tags = {
+
+    name = "tfm-scl-sb2"
+  }
+}
+
+resource "aws_internet_gateway" "scl-igw" {
+  vpc_id = aws_vpc.scl-vpc.id
+  tags = {
+    name = "scl-tfm"
+  }
+}
+
+resource "aws_route_table" "scl-rtb" {
+  vpc_id = aws_vpc.scl-vpc.id
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.scl-igw.id
+  }
+
+  tags = {
+
+    name = "scl-rtb"
+  }
+
+}
+
+resource "aws_route_table_association" "scl-rtb-attch" {
+  subnet_id      = aws_subnet.scl-sbnt-1.id
+  route_table_id = aws_route_table.scl-rtb.id
+
+}
+
+resource "aws_route_table_association" "scl-rtb-attch2" {
+  subnet_id      = aws_subnet.scl-sbnt-2.id
+  route_table_id = aws_route_table.scl-rtb.id
+
+}
+
+resource "aws_launch_configuration" "tfm-cfg" {
+  name_prefix     = "tfm-cfg"
+  image_id        = "ami-01fee56b22f308154"
+  instance_type   = "t2.micro"
+  key_name        = "tfm"
+  security_groups = [aws_security_group.scl-sg.id]
+}
+
+
+resource "aws_autoscaling_group" "tfm-grp" {
+  name                      = "tfm-scling"
+  vpc_zone_identifier       = [aws_subnet.scl-sbnt-1.id, aws_subnet.scl-sbnt-2.id]
+  min_size                  = 2
+  max_size                  = 4
+  health_check_grace_period = 180
+  health_check_type         = "EC2"
+  force_delete              = true
+  launch_configuration      = aws_launch_configuration.tfm-cfg.id
+  tag {
+
+    key                 = "Name"
+    value               = "ec2 instance"
+    propagate_at_launch = true
+  }
+}
+
+
+
+/*
+resource "aws_instance" "ec2-scl" {
+ami = "ami-01fee56b22f308154"
+instance_type = "t2.micro"
+tags = {
+name = "scl-ec2"
+}
+key_name = "tfm"
+security_groups = aws_security_group.scl-sg.id
+subnet_id = aws_subnet.scl-sbnt-1.id
+}
+
+
+*/
