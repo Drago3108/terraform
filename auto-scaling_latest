@@ -136,5 +136,15 @@ security_groups = aws_security_group.scl-sg.id
 subnet_id = aws_subnet.scl-sbnt-1.id
 }
 
+Refer below link:
+
+https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/subnet
+https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/subnet
+https://stackoverflow.com/questions/63385511/attach-multiple-private-subnet-to-route-table-for-each-terraform
+https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route_table_association
+https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/instance
+
 
 */
+
+
